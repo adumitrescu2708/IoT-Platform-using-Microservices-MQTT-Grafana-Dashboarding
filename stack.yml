@@ -1,0 +1,78 @@
+# Copyright: Dumitrescu Alexandra - Jan 2024
+version: '3'
+
+# list of networks
+networks:
+  mosquitto-broker-network:
+    name: mosquitto-broker-network
+  grafana-network:
+    name: grafana-network
+  db-network:
+    name: db-network
+
+services:
+  # MQTT broker
+  mosquitto-broker-service:
+    image: eclipse-mosquitto:1.6
+    ports: 
+      - 1883:1883
+    networks:
+      - mosquitto-broker-network
+    restart: unless-stopped
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-logs:/mosquitto/logs
+      - mosquitto-conf:/mosquitto/config
+
+  # Grafana service
+  grafana-service:
+    image: grafana/grafana:main-ubuntu
+    ports: 
+      - 80:3000
+    networks:
+      - grafana-network
+    depends_on:
+      - influx-db-service
+    env_file: grafana.env
+    links:
+      - influx-db-service
+    restart: unless-stopped
+    volumes:
+      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - type: bind
+        source: ./volumes/grafana
+        target: /var/lib/grafana
+
+  # Influx-DB service, communicates with grafana service
+  influx-db-service:
+    image: influxdb:1.8.10
+    volumes:
+      - type: bind
+        source: ./volumes/influxdb
+        target: /var/lib/influxdb
+      - ./influx-db:/docker-entrypoint-initdb.d
+    networks:
+      - grafana-network
+      - db-network
+
+  # adaptor service, communicates with MQTT broker and InfluxDB services
+  adaptor-server:
+    image: adaptor
+    networks:
+      - mosquitto-broker-network
+      - db-network
+    build:
+      context: ./server/
+      dockerfile: Dockerfile
+    env_file:
+      - server.env
+    depends_on:
+      - mosquitto-broker-service
+      - influx-db-service
+
+# volumes
+volumes:
+  mosquitto-data:
+  mosquitto-logs:
+  mosquitto-conf:

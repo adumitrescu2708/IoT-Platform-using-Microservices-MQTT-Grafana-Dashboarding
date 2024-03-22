@@ -1,0 +1,8 @@
+datasources:
+- name: InfluxDb
+  type: influxdb
+  url: http://sprc3_influx-db-service:8086
+  database: IoTSPRC
+  isDefault: true
+  access: proxy
+  editable: true
